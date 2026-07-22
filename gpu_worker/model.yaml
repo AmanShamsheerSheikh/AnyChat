@@ -1,0 +1,4 @@
+model_name: "Qwen/Qwen2.5-Coder-7B-Instruct"
+temperature: 0.8
+max_tokens: 512
+gpu_memory_utilization: 0.85

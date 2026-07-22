@@ -9,8 +9,6 @@ image = (
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
 )
 
-MODEL_NAME="Qwen/Qwen2.5-Coder-7B-Instruct"
-
 hf_cache_vol = modal.Volume.from_name("hf-cache", create_if_missing=True)
 
 @app.cls(
@@ -22,32 +20,37 @@ hf_cache_vol = modal.Volume.from_name("hf-cache", create_if_missing=True)
     volumes={"/root/.cache/huggingface": hf_cache_vol},
     timeout=600,
 )
+@modal.concurrent(max_inputs=20)
 class GPUWorker:
     @modal.enter()
     async def start(self):
         from vllm import AsyncLLMEngine, AsyncEngineArgs
         from transformers import AutoTokenizer
+        from settings import llm_settings, api_settings
+        import os
 
+        os.environ["HF_TOKEN"] = api_settings.hf_token
         self.engine = AsyncLLMEngine.from_engine_args(
             AsyncEngineArgs(
-                model=MODEL_NAME,
+                model=llm_settings.model_name,
                 enforce_eager=False,
-                gpu_memory_utilization=0.85,
+                gpu_memory_utilization=llm_settings.gpu_memory_utilization,
             )
         )
-        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        self.tokenizer = AutoTokenizer.from_pretrained(llm_settings.model_name)
 
     @modal.method()
     async def generate_tokens(self, prompt: str):
         from vllm import SamplingParams
         from uuid import uuid4
+        from settings import llm_settings
 
         messages = [{"role": "user", "content": prompt}]
         formatted_prompt = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
 
-        sampling_params = SamplingParams(max_tokens=256, temperature=0.2)
+        sampling_params = SamplingParams(max_tokens=llm_settings.max_tokens, temperature=llm_settings.temperature)
         request_id = str(uuid4())
         previous_text = ""
         async for output in self.engine.generate(
