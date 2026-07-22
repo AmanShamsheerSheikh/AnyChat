@@ -38,21 +38,21 @@ class GenerateRequest(BaseModel):
 class RegisterRequest(BaseModel):
     user_name: str
 
-@app.post("/health")
+@app.get("/health")
 def check():
-    return {
-        "status": "working"
-    }
+    return {"status": "working"}
 
-async def stream_and_track(conn: asyncpg.Connection, prompt: str, job_id: str):
+async def stream_and_track(prompt: str, job_id: str, db_pool):
     full_response = ""
     try:
         async for token in gpu_worker.generate_tokens.remote_gen(prompt):
             full_response += token
             yield token
-        await update_job(conn, job_id, JobStatus.DONE.value, result=full_response)
+        async with db_pool.acquire() as conn:
+            await update_job(conn, job_id, JobStatus.DONE.value, result=full_response)
     except Exception as e:
-        await update_job(conn, job_id, JobStatus.FAILED.value, None, error=str(e))
+        async with db_pool.acquire() as conn:
+            await update_job(conn, job_id, JobStatus.FAILED.value, None, error=str(e))
         raise
 
 @app.post("/generate")
@@ -61,7 +61,7 @@ async def generate(request: GenerateRequest, conn: asyncpg.Connection = Depends(
     user_id = await get_user(conn, api_key)
     job_ib = await add_job(conn, user_id, JobStatus.PENDING.value,request.prompt)
     return StreamingResponse(
-        stream_and_track(conn, request.prompt, job_ib),
+        stream_and_track(request.prompt, job_ib, request.app.state.db_pool),
         media_type="text/event-stream"
     )
 
