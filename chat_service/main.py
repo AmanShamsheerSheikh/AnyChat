@@ -3,8 +3,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 import modal
-
 from fastapi.middleware.cors import CORSMiddleware
+from middleware.api_auth import AuthMiddleWare
+from middleware.rate_limiter import RateLimitMiddleWare
+from queries import register_user
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,9 +17,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(AuthMiddleWare)
+app.add_middleware(RateLimitMiddleWare)
 
 class GenerateRequest(BaseModel):
     prompt: str
+
+class RegisterRequest(BaseModel):
+    user_name: str
 
 @app.post("/generate")
 def generate(request: GenerateRequest):
@@ -25,3 +32,11 @@ def generate(request: GenerateRequest):
         gpu_worker.generate_tokens.remote_gen(request.prompt),
         media_type="text/event-stream"
     )
+
+@app.post("/register_user")
+async def generate(request: RegisterRequest, connection):
+    async with request.app.state.db_pool.acquire() as conn:
+        api_key = await register_user(conn, request.user_name)
+    return {
+        "api_key": api_key
+    }
