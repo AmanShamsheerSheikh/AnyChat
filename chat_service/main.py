@@ -7,8 +7,9 @@ import modal
 from fastapi.middleware.cors import CORSMiddleware
 from middleware.api_auth import AuthMiddleWare
 from middleware.rate_limiter import RateLimitMiddleWare
-from queries import register_user
+from queries import register_user, add_job, get_user, update_job
 from init_db import initialize_db
+from constants import JobStatus
 
 async def get_db_connection(request: Request):
     async with request.app.state.db_pool.acquire() as conn:
@@ -37,10 +38,30 @@ class GenerateRequest(BaseModel):
 class RegisterRequest(BaseModel):
     user_name: str
 
+@app.post("/health")
+def check():
+    return {
+        "status": "working"
+    }
+
+async def stream_and_track(conn: asyncpg.Connection, prompt: str, job_id: str):
+    full_response = ""
+    try:
+        async for token in gpu_worker.generate_tokens.remote_gen(prompt):
+            full_response += token
+            yield token
+        await update_job(conn, job_id, JobStatus.DONE.value, result=full_response)
+    except Exception as e:
+        await update_job(conn, job_id, JobStatus.FAILED.value, None, error=str(e))
+        raise
+
 @app.post("/generate")
-def generate(request: GenerateRequest):
+async def generate(request: GenerateRequest, conn: asyncpg.Connection = Depends(get_db_connection)):
+    api_key = request.headers.get("X-API-Key")
+    user_id = await get_user(conn, api_key)
+    job_ib = await add_job(conn, user_id, JobStatus.PENDING.value,request.prompt)
     return StreamingResponse(
-        gpu_worker.generate_tokens.remote_gen(request.prompt),
+        stream_and_track(conn, request.prompt, job_ib),
         media_type="text/event-stream"
     )
 

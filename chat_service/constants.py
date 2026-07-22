@@ -1,0 +1,10 @@
+from enum import Enum
+
+class JobStatus(Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    DONE = "DONE"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    ASSEMBLY_FAILED = "ASSEMBLY_FAILED"
+    DONE_WITH_ERRORS = "DONE_WITH_ERRORS"
