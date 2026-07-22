@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: anychat-config
+  namespace: default
+data:
+  POSTGRES_USER: "admin"
+  POSTGRES_DB: "chats"
+  POSTGRES_HOST: "host.minikube.internal"
+  PGBOUNCER_PORT: "5432"
+  PGBOUNCER_POOL_MODE: "transaction"
+  PGBOUNCER_MAX_CLIENT_CONN: "1000"
+  PGBOUNCER_DEFAULT_POOL_SIZE: "20"
+  PGBOUNCER_MIN_CONNECTIONS: "5"
+  PGBOUNCER_MAX_CONNECTIONS: "20"
+  REDIS_HOST: "host.minikube.internal"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_DECODE_RESPONSES: "True"
