@@ -1,0 +1,4 @@
+modal==1.5.2
+pydantic_settings==2.14.2
+transformers==5.14.1
+vllm==0.21.0

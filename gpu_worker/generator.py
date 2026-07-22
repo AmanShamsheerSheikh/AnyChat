@@ -5,7 +5,9 @@ app = modal.App("anychat-gpu-worker")
 image = (
     modal.Image.from_registry("nvidia/cuda:12.9.0-devel-ubuntu22.04", add_python="3.12")
     .entrypoint([])
-    .uv_pip_install("vllm==0.21.0", "huggingface_hub[hf_transfer]==0.36.0")
+    .uv_pip_install(
+        requirements=["gpu_worker/requirements.txt"],
+    )
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
 )
 
