@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+import asyncpg
+from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 import modal
@@ -8,6 +9,10 @@ from middleware.api_auth import AuthMiddleWare
 from middleware.rate_limiter import RateLimitMiddleWare
 from queries import register_user
 from init_db import initialize_db
+
+async def get_db_connection(request: Request):
+    async with request.app.state.db_pool.acquire() as conn:
+        yield conn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,9 +45,8 @@ def generate(request: GenerateRequest):
     )
 
 @app.post("/register_user")
-async def registerUser(request: RegisterRequest):
-    async with request.app.state.db_pool.acquire() as conn:
-        api_key = await register_user(conn, request.user_name)
+async def registerUser(request: RegisterRequest, conn: asyncpg.Connection = Depends(get_db_connection)):
+    api_key = await register_user(conn, request.user_name)
     return {
         "api_key": api_key
     }
