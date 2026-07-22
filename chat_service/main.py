@@ -7,13 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from middleware.api_auth import AuthMiddleWare
 from middleware.rate_limiter import RateLimitMiddleWare
 from queries import register_user
+from init_db import initialize_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("Starting up: Initializing database pools...")
+    await initialize_db(app)
     print("Starting up: Initializing modal")
     global gpu_worker
     gpu_worker = modal.Cls.from_name("anychat-gpu-worker", "GPUWorker")()
     yield
+    print("Shutting down: Closing database pools...")
+    await app.state.db_pool.close()
+    await app.state.redis.aclose()
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -34,7 +40,7 @@ def generate(request: GenerateRequest):
     )
 
 @app.post("/register_user")
-async def generate(request: RegisterRequest, connection):
+async def registerUser(request: RegisterRequest):
     async with request.app.state.db_pool.acquire() as conn:
         api_key = await register_user(conn, request.user_name)
     return {
